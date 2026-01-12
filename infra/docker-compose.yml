@@ -1,0 +1,55 @@
+version: "3.8"
+
+services:
+  kong-database:
+    image: postgres:13
+    environment:
+      POSTGRES_USER: kong
+      POSTGRES_DB: kong
+      POSTGRES_PASSWORD: kong
+
+  kong-migrations:
+    image: kong:3.5
+    command: kong migrations bootstrap
+    environment:
+      KONG_DATABASE: postgres
+      KONG_PG_HOST: kong-database
+      KONG_PG_USER: kong
+      KONG_PG_PASSWORD: kong
+      KONG_PG_DATABASE: kong
+    depends_on:
+      - kong-database
+
+  kong:
+    image: kong:3.5
+    environment:
+      KONG_DATABASE: postgres
+      KONG_PG_HOST: kong-database
+      KONG_PG_USER: kong
+      KONG_PG_PASSWORD: kong
+      KONG_PG_DATABASE: kong
+      KONG_ADMIN_LISTEN: "0.0.0.0:8001"
+      KONG_PROXY_LISTEN: "0.0.0.0:8443 ssl http2"
+      KONG_SSL_CERT: /etc/kong/certs/server.crt
+      KONG_SSL_CERT_KEY: /etc/kong/certs/server.key
+      KONG_NGINX_PROXY_SSL_VERIFY_CLIENT: on
+      KONG_NGINX_PROXY_SSL_CLIENT_CERTIFICATE: /etc/kong/ca/client-ca-bundle.crt
+      KONG_PLUGINS: bundled,cert-to-jwt
+      KONG_LOG_LEVEL: debug
+      KONG_LUA_PACKAGE_PATH: /usr/local/share/lua/5.1/?.lua;/usr/local/share/lua/5.1/?/init.lua;/kong/plugins/?.lua;/kong/plugins/?/init.lua;;
+
+    volumes:
+      - ./certs/server/:/etc/kong/certs/:ro
+      - ./certs/bundles/:/etc/kong/ca/:ro
+      - ./certs/jwt/:/etc/secrets/:ro
+      - ./certs-mtls-jwt/plugins:/kong/plugins:ro
+
+    ports:
+      - "8443:8443"
+      - "8001:8001"
+
+  mockbin:
+    image: kennethreitz/httpbin
+    container_name: mockbin
+    ports:
+      - "8080:80"
